@@ -46,36 +46,34 @@ func (this Server) ListenMessger() {
 // Handler 处理器
 func (this Server) Handler(conn net.Conn) {
 	fmt.Println("Establish a connection")
-	user := NewUser(conn)
-	//用户上线,加入在线列表
-	this.mapLock.Lock()
-	this.OnlineMap[user.Name] = user
-	this.mapLock.Unlock()
-	//广播当前用户上线消息
+	user := NewUser(conn, &this)
 
-	this.BroadCast(user, "go online")
+	user.Online()
 
 	//接收客户端发送的消息
-	go func() {
-		buf := make([]byte, 4096)
-		for {
-			n, err := conn.Read(buf)
-			if n == 0 {
-				this.BroadCast(user, "Offline")
-				return
-			}
-			if err != nil && err != io.EOF {
-				fmt.Println("conn read err:", err)
-			}
-			msg := string(buf[:n-1])
-
-			//广播发送的消息
-			this.BroadCast(user, msg)
-		}
-	}()
+	go this.HandlerMessage(user, conn)
 
 	//当前handler阻塞
 	select {}
+}
+
+// HandlerMessage 处理消息
+func (this Server) HandlerMessage(user *User, conn net.Conn) {
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		//下线
+		if n == 0 {
+			user.Offline()
+			return
+		}
+		if err != nil && err != io.EOF {
+			fmt.Println("conn read err:", err)
+		}
+		msg := string(buf[:n-1])
+		//处理消息
+		user.DoMessage(msg)
+	}
 }
 
 // Start 启动服务
