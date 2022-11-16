@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -50,15 +51,32 @@ func (this Server) Handler(conn net.Conn) {
 
 	user.Online()
 
+	isLive := make(chan bool)
 	//接收客户端发送的消息
-	go this.HandlerMessage(user, conn)
+	go this.HandlerMessage(user, conn, isLive)
 
 	//当前handler阻塞
-	select {}
+	for {
+		select {
+		case <-isLive:
+			//用户活跃，重置定时器 十分钟退出
+		case <-time.After(time.Minute * 10):
+			//强制下线
+			user.SendMsg("Exited the room due to being offline for too long")
+			//销毁资源
+			close(user.C)
+
+			//关闭资源
+			conn.Close()
+
+			//退出处理器
+			return
+		}
+	}
 }
 
 // HandlerMessage 处理消息
-func (this Server) HandlerMessage(user *User, conn net.Conn) {
+func (this Server) HandlerMessage(user *User, conn net.Conn, isLive chan bool) {
 	buf := make([]byte, 4096)
 	for {
 		n, err := conn.Read(buf)
@@ -73,6 +91,9 @@ func (this Server) HandlerMessage(user *User, conn net.Conn) {
 		msg := string(buf[:n-1])
 		//处理消息
 		user.DoMessage(msg)
+
+		//用户活跃
+		isLive <- true
 	}
 }
 
