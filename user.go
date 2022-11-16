@@ -55,7 +55,10 @@ func (this *User) DoMessage(context string) {
 	i := strings.Index(context, " ")
 	var cmd string = "bc"
 	var body string = ""
-	if i > 0 {
+	//如果只有命令
+	if i == -1 && len(context) > 0 {
+		cmd = context
+	} else if i > 0 {
 		cmd = context[:i]
 		if len(context) > i+1 {
 			body = context[i+1:]

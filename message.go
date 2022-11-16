@@ -5,48 +5,74 @@ import (
 	"strings"
 )
 
-type MessageHandler interface {
+type Handler interface {
 	Handler(user *User, context string)
 }
 
-type MessageHandlerStrategy struct {
-	MessageHandlerMap map[string]*MessageHandler
+type HandlerStrategy struct {
+	MessageHandlerMap map[string]*Handler
 }
 
-type WhoMessageHandler struct {
+type WhoHandler struct {
 }
 
-func (this *WhoMessageHandler) Handler(user *User, context string) {
+func (this *WhoHandler) Handler(user *User, context string) {
 	server := user.server
 	server.mapLock.Lock()
 
-	for _, user := range server.OnlineMap {
-		onlineMsg := fmt.Sprintf("[%s]%s:online\n", user.Addr, user.Name)
+	for _, u := range server.OnlineMap {
+		onlineMsg := fmt.Sprintf("[%s]%s:online\n", u.Addr, u.Name)
+		if user.Addr == u.Addr {
+			onlineMsg = "*" + onlineMsg
+		} else {
+			onlineMsg = " " + onlineMsg
+		}
 		user.SendMsg(onlineMsg)
 	}
 	server.mapLock.Unlock()
 }
 
-type BroadCastMessageHandler struct {
+type BroadCastHandler struct {
 }
 
-func (this *BroadCastMessageHandler) Handler(user *User, context string) {
+func (this *BroadCastHandler) Handler(user *User, context string) {
 	user.server.BroadCast(user, context)
+}
+
+type RenameHandler struct {
+}
+
+func (this *RenameHandler) Handler(user *User, context string) {
+	server := user.server
+	if user.Name == context {
+		user.SendMsg("No modification required")
+	} else if _, ok := server.OnlineMap[context]; ok {
+		user.SendMsg("User name already exists")
+	} else {
+		server.mapLock.Lock()
+		delete(server.OnlineMap, user.Name)
+		user.Name = context
+		server.OnlineMap[user.Name] = user
+		server.mapLock.Unlock()
+		user.SendMsg(fmt.Sprintf("Your user name is changed to : %s", user.Name))
+	}
 }
 
 // MessageHandlerStrategyFactory 策略工厂
 type MessageHandlerStrategyFactory struct {
-	strategys map[string]MessageHandler
+	strategys map[string]Handler
 }
 
 func NewStrategyFactory() *MessageHandlerStrategyFactory {
 	factory := new(MessageHandlerStrategyFactory)
 	//初始化 内部的策略
-	var strategys = make(map[string]MessageHandler, 2)
-	quickSort := new(WhoMessageHandler)
-	bubbleSort := new(BroadCastMessageHandler)
-	strategys["who"] = quickSort
-	strategys["bc"] = bubbleSort
+	var strategys = make(map[string]Handler, 2)
+	whoHandler := new(WhoHandler)
+	broadCastHandler := new(BroadCastHandler)
+	renameHandler := new(RenameHandler)
+	strategys["who"] = whoHandler
+	strategys["bc"] = broadCastHandler
+	strategys["rename"] = renameHandler
 	factory.strategys = strategys
 	return factory
 }
