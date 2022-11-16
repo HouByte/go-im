@@ -1,6 +1,9 @@
 package main
 
-import "net"
+import (
+	"net"
+	"strings"
+)
 
 type User struct {
 	Name   string
@@ -45,7 +48,23 @@ func (this *User) Offline() {
 	this.server.BroadCast(this, "Offline")
 }
 
+var messageStrategyFactory = NewStrategyFactory()
+
 // DoMessage 处理消息
-func (this *User) DoMessage(msg string) {
-	this.server.BroadCast(this, msg)
+func (this *User) DoMessage(context string) {
+	i := strings.Index(context, " ")
+	var cmd string = "bc"
+	var body string = ""
+	if i > 0 {
+		cmd = context[:i]
+		if len(context) > i+1 {
+			body = context[i+1:]
+
+		}
+	}
+	messageStrategyFactory.HandlerMessageStrategy(cmd, this, body)
+}
+
+func (this User) SendMsg(msg string) {
+	this.conn.Write([]byte(msg))
 }
