@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"strings"
 )
@@ -53,7 +54,7 @@ var messageStrategyFactory = NewStrategyFactory()
 // DoMessage 处理消息
 func (this *User) DoMessage(context string) {
 	i := strings.Index(context, " ")
-	var cmd string = "bc"
+	var cmd string = ""
 	var body string = ""
 	//如果只有命令
 	if i == -1 && len(context) > 0 {
@@ -65,9 +66,25 @@ func (this *User) DoMessage(context string) {
 
 		}
 	}
+	if len(cmd) == 0 {
+		this.SendMsg("Illegal command")
+		return
+	}
+	fmt.Println(cmd, body)
 	messageStrategyFactory.HandlerMessageStrategy(cmd, this, body)
 }
 
 func (this User) SendMsg(msg string) {
-	this.conn.Write([]byte(msg))
+	this.conn.Write([]byte(msg + "\n"))
+}
+
+func (this User) SendToMsg(name string, msg string) {
+	msg = fmt.Sprintf("[%s]:%s", this.Name, msg)
+	if this.Name == name {
+		this.SendMsg("You cannot send messages to yourself")
+	} else if receive, ok := this.server.OnlineMap[name]; ok {
+		receive.conn.Write([]byte(msg + "\n"))
+	} else {
+		this.SendMsg("User not found")
+	}
 }
